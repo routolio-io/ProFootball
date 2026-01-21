@@ -1,13 +1,13 @@
 // Ensure crypto is available as a global (required for NestJS TypeORM in some environments)
 import * as crypto from 'crypto';
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 if (typeof (globalThis as any).crypto === 'undefined') {
   (globalThis as any).crypto = crypto;
 }
 if (typeof (global as any).crypto === 'undefined') {
   (global as any).crypto = crypto;
 }
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
+/* eslint-enable @typescript-eslint/no-unsafe-member-access */
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
@@ -32,8 +32,8 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // Global prefix
-  app.setGlobalPrefix('api');
+  // Global prefix (exclude root path for healthcheck)
+  app.setGlobalPrefix('api', { exclude: ['/'] });
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -63,7 +63,29 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`🚀 Application is running on: http://localhost:${port}`);
-  console.log(`📚 Swagger documentation: http://localhost:${port}/api/docs`);
+
+  // Get base URL from environment variables (Railway provides RAILWAY_PUBLIC_DOMAIN)
+  // Or construct from PORT and hostname
+  const getBaseUrl = (): string => {
+    // Check for explicit BASE_URL
+    if (process.env.BASE_URL) {
+      return process.env.BASE_URL.replace(/\/$/, '');
+    }
+
+    // Check for Railway public domain
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      const protocol =
+        process.env.RAILWAY_ENVIRONMENT === 'production' ? 'https' : 'http';
+      return `${protocol}://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    }
+
+    // Fallback to localhost for development
+    return `http://localhost:${port}`;
+  };
+
+  const baseUrl = getBaseUrl();
+
+  console.log(`🚀 Application is running on: ${baseUrl}`);
+  console.log(`📚 Swagger documentation: ${baseUrl}/api/docs`);
 }
 void bootstrap();
